@@ -46,7 +46,7 @@
 
 ### 3.3 습관 편집 (바텀시트)
 - 진입: `＋` (새 습관) 또는 카드 길게 누르기 (수정).
-- 필드: 이름(필수, 공백 불가), 이모지 1개(시스템 이모지 키보드 입력, 첫 이모지 1개만 저장, 기본값 📝), 색(파스텔 8색 중 1개).
+- 필드: 이름(필수, 공백 불가), 이모지 1개(시스템 이모지 키보드 입력, 마지막으로 입력한 이모지 1개만 남김 — 새 이모지를 치면 교체됨, 비우면 📝), 색(파스텔 8색 중 1개).
 - 수정 모드에만 `삭제` 버튼 → 확인 다이얼로그 → 습관과 모든 체크 기록 삭제.
 
 ### 3.4 순서 변경
@@ -104,10 +104,11 @@
 | `data` | Room: `Habit(id, name, emoji, colorIndex, sortOrder)`, `Check(habitId, date: LocalDate)` (PK = habitId+date, Habit 삭제 시 CASCADE). DataStore: 카드 스타일. `HabitRepository`가 Flow로 노출 | — |
 | `calendar` | `MonthGrid` 계산: 연·월·오늘 → 앞 빈칸 수, 일수, 각 칸 상태(완료/과거/오늘/미래). 순수 Kotlin | — |
 | `style` | 스타일 C/A의 색·크기·폰트·장식 파라미터 정의 (앱과 위젯 공용) | — |
-| `ui` | 메인 화면, 카드 컴포저블(C/A), 편집 바텀시트, 설정 화면, `MainViewModel` | data, calendar, style |
-| `widget` | `HabitWidgetProvider`, 구성 Activity, `CardBitmapRenderer`(Canvas로 C/A 그리기), 자정 갱신 스케줄, 위젯↔습관 매핑 저장 | data, calendar, style |
+| `ui` | 메인 화면, 카드 컴포저블(렌더러 래핑), 편집 바텀시트, 설정 화면, `MainViewModel` | data, calendar, style, render |
+| `render` | `CardLayout`(디자인 단위 좌표 계산·탭 판정, 순수 Kotlin), `CardRenderer`(Canvas로 C/A 그리기, 비트맵 출력) | calendar, style |
+| `widget` | `HabitWidgetProvider`, 구성 Activity, `WidgetUpdater`, 자정 갱신 스케줄, 위젯↔습관 매핑 저장 | data, calendar, style, render |
 
-- 앱 카드는 Compose로, 위젯 카드는 Canvas로 각각 그리되 **같은 `style` 값과 같은 `MonthGrid`** 를 사용해 모양을 맞춘다.
+- 카드 그리기는 `render` 패키지의 **`CardRenderer`(android.graphics.Canvas) 하나**로 통일한다. 앱은 Compose `Canvas`의 nativeCanvas에 같은 렌더러로 그리고 탭 좌표를 `CardLayout.dayAt`으로 날짜에 매핑하며, 위젯은 같은 렌더러로 비트맵을 만든다. 앱과 위젯 모양이 구조적으로 동일하다.
 - 데이터·스타일 변경 → `WidgetUpdater`가 해당 위젯들의 비트맵을 다시 그려 `AppWidgetManager.updateAppWidget`으로 반영한다.
 
 ## 7. 오류·예외 처리
