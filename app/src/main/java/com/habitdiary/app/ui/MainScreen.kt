@@ -13,15 +13,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.habitdiary.app.data.Habit
 import com.habitdiary.app.render.CardRenderer
 import java.time.YearMonth
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @Composable
 fun MonthHeader(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
@@ -63,6 +72,8 @@ fun MainScreen(
     onDayTap: (habitId: Long, day: Int) -> Unit,
     onAdd: () -> Unit,
     onSettings: () -> Unit,
+    onEdit: (Habit) -> Unit,
+    onReorder: (List<Long>) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(PageColor).safeDrawingPadding()) {
         MonthHeader(state.month, onPrev, onNext, onAdd, onSettings)
@@ -70,12 +81,37 @@ fun MainScreen(
             EmptyState()
             return@Column
         }
+        // 드래그 중에는 로컬 목록을 움직이고, 손을 떼면 한 번에 저장한다.
+        var rows by remember(state.rows) { mutableStateOf(state.rows) }
+        var moved by remember { mutableStateOf(false) }
+        val listState = rememberLazyListState()
+        val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+            rows = rows.toMutableList().apply { add(to.index, removeAt(from.index)) }
+            moved = true
+        }
         LazyColumn(
+            state = listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(state.rows, key = { it.habit.id }) { row ->
-                HabitCard(row, state.month, state.today, state.style, renderer, onDayTap = { d -> onDayTap(row.habit.id, d) })
+            items(rows, key = { it.habit.id }) { row ->
+                ReorderableItem(reorderState, key = row.habit.id) { isDragging ->
+                    HabitCard(
+                        row, state.month, state.today, state.style, renderer,
+                        onDayTap = { d -> onDayTap(row.habit.id, d) },
+                        modifier = Modifier
+                            .graphicsLayer {
+                                val s = if (isDragging) 1.03f else 1f
+                                scaleX = s
+                                scaleY = s
+                            }
+                            .longPressDraggableHandle(
+                                onDragStarted = { moved = false },
+                                // 길게 누르고 움직이지 않았으면 편집, 움직였으면 새 순서 저장
+                                onDragStopped = { if (moved) onReorder(rows.map { it.habit.id }) else onEdit(row.habit) },
+                            ),
+                    )
+                }
             }
         }
     }
